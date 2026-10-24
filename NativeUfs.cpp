@@ -69,6 +69,7 @@ class NativeUfs : public IOService {
   void inspectSmmu (void);
   void inspectContextBanks (void);
   bool startRoot (IOService *provider);
+  void inspectMsm8998 (void);
   static bool waitSet (uintptr_t base, unsigned offset, uint32_t mask, unsigned loops);
 public:
   IOService *probe (IOService *provider, SInt32 *score) override;
@@ -208,6 +209,36 @@ void NativeUfs::inspect (void)
          "hc_read=%u cap=%08x ver=%08x\n"
          "is=%08x hcs=%08x hce=%08x utrlba=%08x",
          gdsc, memGdsc, axi, ahb, unipro, txs, rxs, aux, readHc, cap, ver, is, hcs, hce, utrlba);
+}
+
+// MSM8998 read-only handoff probe (native-ufs-probe=20). This maps only the UFS
+// host-controller registers and reads them; it does not touch GCC/PHY, submit a
+// request, reset the controller or read/write any block device.
+void NativeUfs::inspectMsm8998 (void)
+{
+  OSSharedPtr<IOMemoryMap> hcMap;
+  uintptr_t hc = mapPhys (0x1da4000ULL, 0x2500, hcMap);
+  if (!hc) {
+    panic ("NATIVE_UFS msm8998: HC map failed");
+  }
+  uint32_t cap = read32 (hc, 0x00);
+  uint32_t ver = read32 (hc, 0x08);
+  uint32_t is = read32 (hc, 0x20);
+  uint32_t hcs = read32 (hc, 0x30);
+  uint32_t hce = read32 (hc, 0x34);
+  uint32_t utrlba = read32 (hc, 0x50);
+  uint32_t utrldbr = read32 (hc, 0x58);
+  uint32_t uecpa = read32 (hc, 0x60);
+  uint32_t uecdl = read32 (hc, 0x68);
+  uint32_t uecpr = read32 (hc, 0x70);
+  uint32_t uecdme = read32 (hc, 0x78);
+  panic ("NATIVE_UFS msm8998 read-only\n"
+         "hc=%p cap=%08x ver=%08x\n"
+         "is=%08x hcs=%08x hce=%08x\n"
+         "utrlba=%08x utrldbr=%08x\n"
+         "uecpa=%08x uecdl=%08x uecpr=%08x uecdme=%08x",
+         (void *) hc, cap, ver, is, hcs, hce, utrlba, utrldbr,
+         uecpa, uecdl, uecpr, uecdme);
 }
 
 // Adopt the controller the firmware left running (native-ufs-probe=3) and issue
@@ -1741,6 +1772,9 @@ bool NativeUfs::start (IOService *provider)
   unsigned diagnostic = 0;
   PE_parse_boot_argn ("native-ufs-diagnostics", &diagnostic, sizeof (diagnostic));
   gRootDiagnosticEnabled = diagnostic == 1;
+  if (probe == 20) {
+    inspectMsm8998 ();
+  }
   if (probe == 2) {
     inspect ();
   }
