@@ -1429,7 +1429,7 @@ bool NativeUfsBlock::authenticatesVolume (const char *uuid, uint8_t *manifestDig
   }
   if (manifestDigest) {
     // Hash only the authenticated envelope, excluding allocation padding and the key.
-    const uint64_t envelope = VR_HEADER_BYTES + VR_SIGNATURE_BYTES + verified.block_count * 32;
+    const uint64_t envelope = VR_HEADER_BYTES + VR_SIGNATURE_BYTES + verified.block_count * VR_HASH_BYTES;
     SHA384_CTX context;
     SHA384_Init (&context);
     SHA384_Update (&context, reinterpret_cast<const void *> (verifiedStorage), envelope);
